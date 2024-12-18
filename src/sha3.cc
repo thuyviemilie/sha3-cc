@@ -1,3 +1,4 @@
+#include "sha3.h"
 #include <iostream>
 #include <fstream>
 #include <array>
