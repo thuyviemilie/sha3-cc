@@ -84,8 +84,11 @@ static void keccakf(uint64_t state[25]) {
         uint64_t B[25];
         for (int x = 0; x < 5; x++) {
             for (int y = 0; y < 5; y++) {
-                B[y + 5 * ((2*x + 3*y) % 5)] = (state[x + 5*y] << KECCAKF_ROTATION_OFFSETS[y][x]) |
-                                               (state[x + 5*y] >> (64 - KECCAKF_ROTATION_OFFSETS[y][x]));
+                // Rotate A[x,y] by r[x,y]
+                uint64_t rotated = (state[x + 5*y] << KECCAKF_ROTATION_OFFSETS[x][y]) |
+                                (state[x + 5*y] >> (64 - KECCAKF_ROTATION_OFFSETS[x][y]));
+                // Pi step: B[y, (2x+3y)%5] = rotated
+                B[y + 5 * ((2*x + 3*y) % 5)] = rotated;
             }
         }
 
