@@ -1,19 +1,37 @@
 #include "sha3.h"
 #include <iostream>
 #include <iomanip>
+#include <chrono>
+#include <cstring> // for strcmp
 
-// Usage: ./sha3 <filename>
 // Prints the SHA3-256 hash of the given file in hex.
 int main(int argc, char *argv[]) {
-    if (argc != 2) {
-        std::cerr << "Usage: " << argv[0] << " <file>\n";
+    bool show_time = false;
+    std::string filename;
+
+    if (argc == 3 && std::strcmp(argv[1], "-t") == 0) {
+        show_time = true;
+        filename = argv[2];
+    } else if (argc == 2) {
+        filename = argv[1];
+    } else {
+        std::cerr << "Usage: " << argv[0] << " [-t] <file>\n";
         return 1;
     }
 
     uint8_t digest[SHA3_256_DIGEST_SIZE];
+    std::chrono::steady_clock::time_point start, end;
+    if (show_time) {
+        start = std::chrono::steady_clock::now();
+    }
+
     if (!sha3_256_file(argv[1], digest)) {
         std::cerr << "Error reading file: " << argv[1] << "\n";
         return 1;
+    }
+
+    if (show_time) {
+        end = std::chrono::steady_clock::now();
     }
 
     for (size_t i = 0; i < SHA3_256_DIGEST_SIZE; i++) {
@@ -21,6 +39,11 @@ int main(int argc, char *argv[]) {
                   << (unsigned)digest[i];
     }
     std::cout << "\n";
+
+    if (show_time) {
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+        std::cout << "Computational time: " << duration << " ms\n";
+    }
 
     return 0;
 }
