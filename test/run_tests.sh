@@ -2,7 +2,7 @@
 
 TEST_DIR="test"
 
-TEST_FILES="abc.txt file50.txt large.txt lorem.txt"
+TEST_FILES="abc.txt file50.txt large.txt lol.txt lorem.txt"
 
 # Check if the sha3 program exists
 if [ ! -x "./sha3" ]; then
