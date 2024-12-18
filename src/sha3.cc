@@ -6,23 +6,7 @@
 #include <iomanip>
 #include <stdexcept>
 
-// Based on FIPS PUB 202 - SHA-3 Standard 
-// from https://keccak.team/specifications.html#FIPS_202
-// and https://keccak.team/keccak_specs_summary.html
-// and https://en.wikipedia.org/wiki/SHA-3
 
-// This implementation follows the Keccak Team's specification for SHA3-256:
-// - The capacity is fixed at 512 bits, and the rate at 1088 bits.
-// - The output size is 256 bits.
-// - The padding is the standard SHA-3 padding: 0x06, then a 0x80 at the end of the block.
-
-// Constants for SHA3-256
-static const size_t SHA3_256_RATE = 1088 / 8; // 1088 bits = 136 bytes
-static const size_t SHA3_256_DIGEST_SIZE = 256 / 8; // 32 bytes
-static const size_t SHA3_256_STATE_SIZE = 1600 / 8; // 200 bytes
-static const size_t SHA3_256_NUM_ROUNDS = 24;
-
-static const size_t BUFFER_SIZE = 4096;
 
 // Keccak-f[1600] round constants (table 1 in the spec)
 static const uint64_t KECCAKF_ROUND_CONSTANTS[24] = {
@@ -49,26 +33,11 @@ static const int KECCAKF_ROTATION_OFFSETS[5][5] = {
     { 27, 20, 39,  8, 14 }
 };
 
-// Convert a 64-bit integer from host endianness to little-endian byte array
-static inline void store64_le(uint8_t *x, uint64_t u) {
-    for (int i = 0; i < 8; i++) {
-        x[i] = (uint8_t)(u & 0xFF);
-        u >>= 8;
-    }
-}
 
-// Convert a 64-bit little-endian byte array to a host 64-bit integer
-static inline uint64_t load64_le(const uint8_t *x) {
-    uint64_t u = 0;
-    for (int i = 0; i < 8; i++) {
-        u |= ((uint64_t)x[i]) << (8 * i);
-    }
-    return u;
-}
 
 // Keccak-f[1600] permutations
-static void keccakf(uint64_t state[SHA3_256_NUM_ROUNDS + 1]) {
-    for (int round = 0; round < SHA3_256_NUM_ROUNDS; round++) {
+static void keccakf(uint64_t state[25]) {
+    for (int round = 0; round < (int)SHA3_256_NUM_ROUNDS; round++) {
         // Theta
         uint64_t C[5];
         for (int x = 0; x < 5; x++) {
@@ -112,19 +81,17 @@ static void keccakf(uint64_t state[SHA3_256_NUM_ROUNDS + 1]) {
     }
 }
 
-class SHA3_256 {
-public:
-    SHA3_256() {
-        reset();
-    }
+SHA3_256::SHA3_256() {
+    reset();
+}
 
-    void reset() {
-        std::memset(state_bytes, 0, sizeof(state_bytes));
-        rate_pos = 0;
-        finalized = false;
-    }
+void SHA3_256::reset() {
+    std::memset(state_bytes, 0, sizeof(state_bytes));
+    rate_pos = 0;
+    finalized = false;
+}
 
-    void update(const uint8_t *data, size_t len) {
+void SHA3_256::update(const uint8_t *data, size_t len) {
         if (finalized) {
             throw std::runtime_error("SHA3_256: update() after finalize()");
         }
@@ -137,9 +104,9 @@ public:
                 rate_pos = 0;
             }
         }
-    }
+}
 
-    void finalize(uint8_t *digest) {
+void SHA3_256::finalize(uint8_t *digest) {
         if (finalized) return;
 
         // Padding
@@ -147,77 +114,20 @@ public:
         state_bytes[SHA3_256_RATE - 1] ^= 0x80; // 1
         absorb_block();
 
-        // Squeeze out the digest
+        // Squeeze
         std::memcpy(digest, state_bytes, SHA3_256_DIGEST_SIZE);
-
         finalized = true;
-    }
-
-private:
-    uint8_t state_bytes[SHA3_256_STATE_SIZE]; 
-    size_t rate_pos;
-    bool finalized;
-
-    void absorb_block() {
-        // Convert state_bytes into 64-bit words
-        uint64_t st[25];
-        for (int i = 0; i < 25; i++) {
-            st[i] = load64_le(&state_bytes[8*i]);
-        }
-
-        keccakf(st);
-
-        // Convert back
-        for (int i = 0; i < 25; i++) {
-            store64_le(&state_bytes[8*i], st[i]);
-        }
-    }
-};
-
-// Helper function to compute SHA3-256 of a file
-// Returns true on success, false on failure.
-bool sha3_256_file(const std::string &filename, uint8_t *out_digest) {
-    std::ifstream file(filename, std::ios::binary);
-    if (!file) {
-        return false;
-    }
-
-    SHA3_256 sha3;
-    const size_t buf_size = BUFFER_SIZE;
-    uint8_t buffer[buf_size];
-
-    while (file) {
-        file.read(reinterpret_cast<char*>(buffer), buf_size);
-        std::streamsize read_count = file.gcount();
-        if (read_count > 0) {
-            sha3.update(buffer, (size_t)read_count);
-        }
-    }
-
-    sha3.finalize(out_digest);
-    return true;
 }
 
-// Example main program
-// Usage: ./sha3 <filename>
-// Prints the SHA3-256 hash of the given file in hex.
-int main(int argc, char *argv[]) {
-    if (argc != 2) {
-        std::cerr << "Usage: " << argv[0] << " <file>\n";
-        return 1;
+void SHA3_256::absorb_block() {
+    uint64_t st[25];
+    for (int i = 0; i < 25; i++) {
+        st[i] = load64_le(&state_bytes[8*i]);
     }
 
-    uint8_t digest[SHA3_256_DIGEST_SIZE];
-    if (!sha3_256_file(argv[1], digest)) {
-        std::cerr << "Error reading file: " << argv[1] << "\n";
-        return 1;
-    }
+    keccakf(st);
 
-    for (size_t i = 0; i < SHA3_256_DIGEST_SIZE; i++) {
-        std::cout << std::hex << std::setw(2) << std::setfill('0')
-                  << (unsigned)digest[i];
+    for (int i = 0; i < 25; i++) {
+        store64_le(&state_bytes[8*i], st[i]);
     }
-    std::cout << "\n";
-
-    return 0;
 }
