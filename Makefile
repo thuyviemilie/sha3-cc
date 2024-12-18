@@ -19,5 +19,8 @@ src/utils.o: src/utils.cc src/sha3.h
 src/main.o: src/main.cc src/sha3.h
 	$(CXX) $(CXXFLAGS) -c src/main.cc -o src/main.o
 
+test: all
+	./test/run_tests.sh
+
 clean:
 	rm -f $(OBJS) $(TARGET)

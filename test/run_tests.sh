@@ -31,9 +31,9 @@ for f in $TEST_FILES; do
 
     # Compare
     if [ "$MY_HASH" = "$OPENSSL_HASH" ]; then
-        echo "Test '$f': PASS"
+        echo "Test '$f': \033[32mPASS\033[0m"
     else
-        echo "Test '$f': FAIL"
+        echo "Test '$f': \033[31mFAIL\033[0m"
         ALL_PASSED=false
     fi
     echo "  our hash:     $MY_HASH"
