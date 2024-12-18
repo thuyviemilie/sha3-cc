@@ -25,7 +25,7 @@ int main(int argc, char *argv[]) {
         start = std::chrono::steady_clock::now();
     }
 
-    if (!sha3_256_file(argv[1], digest)) {
+    if (!sha3_256_file(filename, digest)) {
         std::cerr << "Error reading file: " << argv[1] << "\n";
         return 1;
     }
