@@ -6,19 +6,25 @@
 #include <iomanip>
 #include <stdexcept>
 
+// Based on FIPS PUB 202 - SHA-3 Standard 
+// from https://keccak.team/specifications.html#FIPS_202
+// and https://keccak.team/keccak_specs_summary.html
+// and https://en.wikipedia.org/wiki/SHA-3
+
 // This implementation follows the Keccak Team's specification for SHA3-256:
-// - The capacity is fixed at 512 bits, and the rate at 1088 bits for SHA3-256.
+// - The capacity is fixed at 512 bits, and the rate at 1088 bits.
 // - The output size is 256 bits.
 // - The padding is the standard SHA-3 padding: 0x06, then a 0x80 at the end of the block.
-
-// For more details on Keccak and SHA-3, see:
-// https://keccak.team/ and https://en.wikipedia.org/wiki/SHA-3
 
 // Constants for SHA3-256
 static const size_t SHA3_256_RATE = 1088 / 8; // 1088 bits = 136 bytes
 static const size_t SHA3_256_DIGEST_SIZE = 256 / 8; // 32 bytes
+static const size_t SHA3_256_STATE_SIZE = 1600 / 8; // 200 bytes
+static const size_t SHA3_256_NUM_ROUNDS = 24;
 
-// Keccak-f[1600] constants
+static const size_t BUFFER_SIZE = 4096;
+
+// Keccak-f[1600] round constants (table 1 in the spec)
 static const uint64_t KECCAKF_ROUND_CONSTANTS[24] = {
     0x0000000000000001ULL, 0x0000000000008082ULL,
     0x800000000000808aULL, 0x8000000080008000ULL,
@@ -34,7 +40,7 @@ static const uint64_t KECCAKF_ROUND_CONSTANTS[24] = {
     0x0000000080000001ULL, 0x8000000080008008ULL
 };
 
-// Rotation offsets
+// Rotation offsets (table 2 in the psec)
 static const int KECCAKF_ROTATION_OFFSETS[5][5] = {
     {  0, 36,  3, 41, 18 },
     {  1, 44, 10, 45,  2 },
@@ -60,9 +66,9 @@ static inline uint64_t load64_le(const uint8_t *x) {
     return u;
 }
 
-// Keccak-f[1600] permutation
-static void keccakf(uint64_t state[25]) {
-    for (int round = 0; round < 24; round++) {
+// Keccak-f[1600] permutations
+static void keccakf(uint64_t state[SHA3_256_NUM_ROUNDS + 1]) {
+    for (int round = 0; round < SHA3_256_NUM_ROUNDS; round++) {
         // Theta
         uint64_t C[5];
         for (int x = 0; x < 5; x++) {
@@ -84,10 +90,8 @@ static void keccakf(uint64_t state[25]) {
         uint64_t B[25];
         for (int x = 0; x < 5; x++) {
             for (int y = 0; y < 5; y++) {
-                // Rotate A[x,y] by r[x,y]
                 uint64_t rotated = (state[x + 5*y] << KECCAKF_ROTATION_OFFSETS[x][y]) |
                                 (state[x + 5*y] >> (64 - KECCAKF_ROTATION_OFFSETS[x][y]));
-                // Pi step: B[y, (2x+3y)%5] = rotated
                 B[y + 5 * ((2*x + 3*y) % 5)] = rotated;
             }
         }
@@ -108,7 +112,6 @@ static void keccakf(uint64_t state[25]) {
     }
 }
 
-// SHA3-256 class
 class SHA3_256 {
 public:
     SHA3_256() {
@@ -130,7 +133,6 @@ public:
         for (size_t i = 0; i < len; i++) {
             state_bytes[rate_pos++] ^= data[i];
             if (rate_pos == SHA3_256_RATE) {
-                // Full block
                 absorb_block();
                 rate_pos = 0;
             }
@@ -141,8 +143,8 @@ public:
         if (finalized) return;
 
         // Padding
-        state_bytes[rate_pos] ^= 0x06; // domain separation for SHA-3
-        state_bytes[SHA3_256_RATE - 1] ^= 0x80;
+        state_bytes[rate_pos] ^= 0x06; // domain separation
+        state_bytes[SHA3_256_RATE - 1] ^= 0x80; // 1
         absorb_block();
 
         // Squeeze out the digest
@@ -152,7 +154,7 @@ public:
     }
 
 private:
-    uint8_t state_bytes[200]; // 1600 bits
+    uint8_t state_bytes[SHA3_256_STATE_SIZE]; 
     size_t rate_pos;
     bool finalized;
 
@@ -181,7 +183,7 @@ bool sha3_256_file(const std::string &filename, uint8_t *out_digest) {
     }
 
     SHA3_256 sha3;
-    const size_t buf_size = 4096;
+    const size_t buf_size = BUFFER_SIZE;
     uint8_t buffer[buf_size];
 
     while (file) {
