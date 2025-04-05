@@ -1,9 +1,8 @@
 # SHA3-256 and Keccak implementation
 
-**Authors:**  
+**Author:**  
 - Thuy Vi Emilie NGUYEN
-- Alex YE
-
+  
 ## Overview
 
 This project provides a command-line tool to compute SHA3-256 hashes for files. It is implemented in C++ and follows the SHA3 standard (FIPS 202) specification closely.
